@@ -12,7 +12,7 @@ class Post(BaseModel):
     title:str = Field(min_length=5, max_length=50)
     content:str = Field(min_length=10)
     published: bool = True
-    rating: Optional[int] = Field(ge=1, le=5, description="rating must bbe between 1 and 5")
+
 while True:
     try:
         conn=psycopg.connect(host="localhost", dbname="fastapi", user="postgres",
@@ -48,26 +48,21 @@ def root():
 
 @app.get("/posts")
 def get_posts():
-    return {"data":my_post}
+    cursor.execute("""SELECT * FROM posts""")
+    posts=cursor.fetchall()
+    print(posts)
+    return {"data":posts}
 
-@app.post("/posts")
+@app.post("/posts", status_code=status.HTTP_201_CREATED)
 #if the same title already exist, then we need to return 400 error
 #api verifies the schema
-def create_posts(post: Post, response: Response):
-    #converting pydantic instance into dict and storing it
-    post_dict = post.dict()
-    #creating a random id
-    post_dict['id'] = randrange(0,1000000)
-    dup_title=check_title(post_dict['title'])
-    if dup_title:
-        response.status_code= status.HTTP_404_NOT_FOUND
-        return "error"
-    #appending it to the main db
-    else:
-        my_post.append(post_dict)
-        #returning it to user
-        return {"data":post_dict}
-
+def create_posts(post: Post):
+    cursor.execute("""INSERT INTO posts(title, content, published) VALUES (%s, %s, %s)
+                   RETURNING * """,
+                   (post.title, post.content, post.published))
+    new_post=cursor.fetchone()
+    conn.commit()
+    return {"data":new_post}
 @app.get("/posts/{id}")
 # ineed to modify my post so that
 def get_post(id:int, response: Response):
@@ -90,7 +85,7 @@ def update_post(id:int, post:Post):
     index= find_indexpost(id)
     if index==None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"post with id {id} was not found")
-    post_dict= post.dict()
+    post_dict= post.model_dump()
     post_dict['id']=id
     my_post[index]=post_dict
     return {"data":post_dict}
