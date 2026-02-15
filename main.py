@@ -54,9 +54,10 @@ def get_posts():
     return {"data":posts}
 
 @app.post("/posts", status_code=status.HTTP_201_CREATED)
-#if the same title already exist, then we need to return 400 error
-#api verifies the schema
-def create_posts(post: Post):
+#prevent duplicate titles
+def create_posts(post: Post, ):
+    #run a select query to chcek if title exists.if exists raise http
+    
     cursor.execute("""INSERT INTO posts(title, content, published) VALUES (%s, %s, %s)
                    RETURNING * """,
                    (post.title, post.content, post.published))
@@ -66,11 +67,13 @@ def create_posts(post: Post):
 @app.get("/posts/{id}")
 # ineed to modify my post so that
 def get_post(id:int, response: Response):
+    cursor.execute("""SELECT * FROM posts where id=%s""",(id,))
+    np=cursor.fetchone()
     post= find_post(id)
-    if not post:
+    if not np:
         response.status_code= status.HTTP_404_NOT_FOUND
         return {"message":f"post with id {id} was not found"}
-    return {"post_detail":post}
+    return {"post_detail":np}
 
 @app.delete("/posts/{id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_post(id:int):
